@@ -1,117 +1,80 @@
-<?php
-header("Content-Type: application/json; charset=utf-8");
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: GET, POST, OPTIONS");
-header("Access-Control-Allow-Headers: Content-Type");
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cadastro de Alunos</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <center>
+        <h1>Cadastro de Aluno</h1>
+        <br>
+        <form id="formAluno">
+            <label for="nome">Nome completo:</label><br>
+            <input type="text" id="nome" placeholder="Insira o nome" required /><br><br>
 
-if ($_SERVER["REQUEST_METHOD"] === "OPTIONS") {
-    http_response_code(200);
-    exit;
-}
+            <label for="email">E-mail:</label><br>
+            <input type="email" id="email" placeholder="Insira o email" required /><br><br>
 
-require "config.php";
+            <label for="telefone">Telefone:</label><br>
+            <input type="text" id="telefone" placeholder="(00) 00000-0000" /><br><br>
 
-$rota = $_GET["rota"] ?? "teste";
+            <label for="data_nascimento">Data de Nascimento:</label><br>
+            <input type="date" id="data_nascimento" /><br><br>
 
-function teste() {
-    echo json_encode(["mensagem" => "API Autoescola respondendo perfeitamente!"]);
-}
+            <button type="submit">Cadastrar Aluno</button><br><br>
+        </form>
 
-function listarAlunos($pdo) {
-    $stmt = $pdo->query("SELECT * FROM alunos ORDER BY id DESC");
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
-}
+        <hr>
 
-function criarAluno($pdo) {
-    
-    $dados = json_decode(file_get_contents("php://input"), true);
+        <h2>Alunos Cadastrados</h2>
+        <ul id="listaAlunos"></ul>
+    </center>
 
-    $nome = $dados["nome"] ?? "";
-    $email = $dados["email"] ?? "";
-    $telefone = $dados["telefone"] ?? "";
-    $data_nascimento = $dados["data_nascimento"] ?? "";
+    <script>
+        const url = 'http://localhost/autoescola/back/index.php?rota=alunos';
 
-    if (empty($nome) || empty($email)) {
-        http_response_code(400);
-        echo json_encode(["erro" => "Nome e e-mail são obrigatórios."]);
-        return;
-    }
-
-    try {
-        $sql = "INSERT INTO alunos (nome, email, telefone, data_nascimento) VALUES (?, ?, ?, ?)";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$nome, $email, $telefone, $data_nascimento]);
-
-        http_response_code(201);
-        echo json_encode(["mensagem" => "Aluno cadastrado com sucesso!"]);
-    } catch (PDOException $e) {
-        
-        if ($e->getCode() == "23000") {
-            http_response_code(409);
-            echo json_encode(["erro" => "Este e-mail já está cadastrado."]);
-        } else {
-            http_response_code(500);
-            echo json_encode(["erro" => "Erro ao cadastrar aluno."]);
+        function carregarAlunos() {
+            fetch(url)
+                .then(resposta => resposta.json())
+                .then(alunos => {
+                    const lista = document.getElementById('listaAlunos');
+                    lista.innerHTML = '';
+                    alunos.forEach(aluno => {
+                        lista.innerHTML += `<li><strong>${aluno.nome}</strong> - ${aluno.email}</li>`;
+                    });
+                })
+                .catch(erro => console.error('Erro ao carregar alunos:', erro));
         }
-    }
-}
 
-function listarInstrutores($pdo) {
-    $stmt = $pdo->query("SELECT * FROM instrutores ORDER BY id DESC");
-    echo json_encode($stmt->fetchAll(PDO::FETCH_ASSOC));
-}
+        document.getElementById('formAluno').addEventListener('submit', function(e) {
+            e.preventDefault();
 
-function criarInstrutor($pdo) {
-    $dados = json_decode(file_get_contents("php://input"), true);
+            const dados = {
+                nome: document.getElementById('nome').value,
+                email: document.getElementById('email').value,
+                telefone: document.getElementById('telefone').value,
+                data_nascimento: document.getElementById('data_nascimento').value
+            };
 
-    $nome = $dados["nome"] ?? "";
-    $email = $dados["email"] ?? "";
+            fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(dados)
+            })
+            .then(resposta => resposta.json())
+            .then(resultado => {
+                alert(resultado.mensagem || resultado.erro);
+                if (resultado.mensagem) {
+                    document.getElementById('formAluno').reset();
+                    carregarAlunos();
+                }
+            })
+            .catch(erro => alert('Erro na requisição.'));
+        });
 
-    if (empty($nome) || empty($email)) {
-        http_response_code(400);
-        echo json_encode(["erro" => "Nome e e-mail são obrigatórios."]);
-        return;
-    }
-
-    try {
-        $sql = "INSERT INTO instrutores (nome, email) VALUES (?, ?)";
-        $stmt = $pdo->prepare($sql);
-        $stmt->execute([$nome, $email]);
-
-        http_response_code(201);
-        echo json_encode(["mensagem" => "Instrutor cadastrado com sucesso!"]);
-    } catch (PDOException $e) {
-        if ($e->getCode() == "23000") {
-            http_response_code(409);
-            echo json_encode(["erro" => "Este e-mail já está cadastrado."]);
-        } else {
-            http_response_code(500);
-            echo json_encode(["erro" => "Erro ao cadastrar instrutor."]);
-        }
-    }
-}
-
-$metodo = $_SERVER["REQUEST_METHOD"];
-
-switch ($rota) {
-
-    case "alunos":
-        if ($metodo === "GET") {
-            listarAlunos($pdo);
-        } elseif ($metodo === "POST") {
-            criarAluno($pdo);
-        }
-        break;
-
-    case "instrutores":
-        if ($metodo === "GET") {
-            listarInstrutores($pdo);
-        } elseif ($metodo === "POST") {
-            criarInstrutor($pdo);
-        }
-        break;
-
-    default:
-        teste();
-        break;
-}
+        carregarAlunos();
+    </script>
+</body>
+</html>
